@@ -12,7 +12,7 @@ In addition to the base sheet keys, worksheets also add:
   Each row object encodes properties including row height and visibility.
 
 - `ws['!merges']`: array of range objects corresponding to the merged cells in
-  the worksheet.  Plaintext utilities are unaware of merge cells.  CSV export
+  the worksheet.  Plain text formats do not support merge cells.  CSV export
   will write all cells in the merge range if they exist, so be sure that only
   the first cell (upper-left) in the range is set.
 
@@ -23,7 +23,7 @@ In addition to the base sheet keys, worksheets also add:
   sheet is locked or set to `true` to disable a feature:
 
 <details>
-	<summary><b>Worksheet Protection Details</b> (click to show)</summary>
+  <summary><b>Worksheet Protection Details</b> (click to show)</summary>
 
 | key                   | feature (true=disabled / false=enabled) | default    |
 |:----------------------|:----------------------------------------|:-----------|
@@ -59,4 +59,14 @@ Chartsheets are represented as standard sheets.  They are distinguished with the
 
 The underlying data and `!ref` refer to the cached data in the chartsheet.  The
 first row of the chartsheet is the underlying header.
+
+#### Macrosheet Object
+
+Macrosheets are represented as standard sheets.  They are distinguished with the
+`!type` property set to `"macro"`.
+
+#### Dialogsheet Object
+
+Dialogsheets are represented as standard sheets. They are distinguished with the
+`!type` property set to `"dialog"`.
 

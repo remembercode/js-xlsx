@@ -1,7 +1,8 @@
 /* [MS-OLEDS] 2.3.8 CompObjStream */
-function parse_compobj(obj) {
+function parse_compobj(obj/*:CFBEntry*/) {
 	var v = {};
 	var o = obj.content;
+	/*:: if(o == null) return; */
 
 	/* [MS-OLEDS] 2.3.7 CompObjHeader -- All fields MUST be ignored */
 	var l = 28, m;
@@ -37,11 +38,11 @@ function slurp(R, blob, length/*:number*/, opts) {
 	var l = length;
 	var bufs = [];
 	var d = blob.slice(blob.l,blob.l+l);
-	if(opts && opts.enc && opts.enc.insitu_decrypt) switch(R.n) {
+	if(opts && opts.enc && opts.enc.insitu) switch(R.n) {
 	case 'BOF': case 'FilePass': case 'FileLock': case 'InterfaceHdr': case 'RRDInfo': case 'RRDHead': case 'UsrExcl': break;
 	default:
 		if(d.length === 0) break;
-		opts.enc.insitu_decrypt(d);
+		opts.enc.insitu(d);
 	}
 	bufs.push(d);
 	blob.l += l;
@@ -329,14 +330,16 @@ function parse_workbook(blob, options/*:ParseOpts*/)/*:Workbook*/ {
 					out = ((options.dense ? [] : {})/*:any*/);
 				} break;
 				case 'BOF': {
-					if(opts.biff !== 8){/* empty */}
-					else if(RecordType  === 0x0009) opts.biff = 2;
-					else if(RecordType  === 0x0209) opts.biff = 3;
-					else if(RecordType  === 0x0409) opts.biff = 4;
-					else if(val.BIFFVer === 0x0500) opts.biff = 5;
-					else if(val.BIFFVer === 0x0600) opts.biff = 8;
-					else if(val.BIFFVer === 0x0002) opts.biff = 2;
-					else if(val.BIFFVer === 0x0007) opts.biff = 2;
+					if(opts.biff === 8) switch(RecordType) {
+						case 0x0009: opts.biff = 2; break;
+						case 0x0209: opts.biff = 3; break;
+						case 0x0409: opts.biff = 4; break;
+						default: switch(val.BIFFVer) {
+						case 0x0500: opts.biff = 5; break;
+						case 0x0600: opts.biff = 8; break;
+						case 0x0002: opts.biff = 2; break;
+						case 0x0007: opts.biff = 2; break;
+					}}
 					if(file_depth++) break;
 					cell_valid = true;
 					out = ((options.dense ? [] : {})/*:any*/);
@@ -692,7 +695,8 @@ function parse_workbook(blob, options/*:ParseOpts*/)/*:Workbook*/ {
 				/* Explicitly Ignored */
 				case 'Excel9File': break;
 				case 'Units': break;
-				case 'InterfaceHdr': case 'Mms': case 'InterfaceEnd': case 'DSF': case 'BuiltInFnGroupCount': break;
+				case 'InterfaceHdr': case 'Mms': case 'InterfaceEnd': case 'DSF': break;
+				case 'BuiltInFnGroupCount': /* 2.4.30 0x0E or 0x10 but excel 2011 generates 0x11? */ break;
 				/* View Stuff */
 				case 'Window1': case 'Window2': case 'HideObj': case 'GridSet': case 'Guts':
 				case 'UserBView': case 'UserSViewBegin': case 'UserSViewEnd':
@@ -791,6 +795,9 @@ function parse_workbook(blob, options/*:ParseOpts*/)/*:Workbook*/ {
 				case 'ListObj': case 'ListField': break;
 				case 'RRSort': break;
 				case 'BigName': break;
+				case 'ToolbarHdr': case 'ToolbarEnd': break;
+				case 'DDEObjName': break;
+				case 'FRTArchId$': break;
 				default: if(options.WTF) throw 'Unrecognized Record ' + R.n;
 			}}}}
 		} else blob.l += length;
@@ -813,25 +820,31 @@ function parse_workbook(blob, options/*:ParseOpts*/)/*:Workbook*/ {
 }
 
 /* TODO: WTF */
-function parse_props(cfb) {
+function parse_props(cfb/*:CFBContainer*/, props, o) {
 	/* [MS-OSHARED] 2.3.3.2.2 Document Summary Information Property Set */
 	var DSI = CFB.find(cfb, '!DocumentSummaryInformation');
-	if(DSI) try { cfb.DocSummary = parse_PropertySetStream(DSI, DocSummaryPIDDSI); } catch(e) {/* empty */}
+	if(DSI) try {
+		var DocSummary = parse_PropertySetStream(DSI, DocSummaryPIDDSI);
+		for(var d in DocSummary) props[d] = DocSummary[d];
+	} catch(e) {if(o.WTF == 2) throw e;/* empty */}
 
 	/* [MS-OSHARED] 2.3.3.2.1 Summary Information Property Set*/
 	var SI = CFB.find(cfb, '!SummaryInformation');
-	if(SI) try { cfb.Summary = parse_PropertySetStream(SI, SummaryPIDSI); } catch(e) {/* empty */}
+	if(SI) try {
+		var Summary = parse_PropertySetStream(SI, SummaryPIDSI);
+		for(var s in Summary) if(props[s] == null) props[s] = Summary[s];
+	} catch(e) {if(o.WTF == 2) throw e;/* empty */}
 }
 
 function parse_xlscfb(cfb/*:any*/, options/*:?ParseOpts*/)/*:Workbook*/ {
 if(!options) options = {};
 fix_read_opts(options);
 reset_cp();
-var CompObj, Summary, WB/*:?any*/;
+var CompObj/*:?CFBEntry*/, Summary, WB/*:?any*/;
 if(cfb.FullPaths) {
 	CompObj = CFB.find(cfb, '!CompObj');
 	Summary = CFB.find(cfb, '!SummaryInformation');
-	WB = CFB.find(cfb, '/Workbook');
+	WB = CFB.find(cfb, '/Workbook') || CFB.find(cfb, '/Book');
 } else {
 	switch(options.type) {
 		case 'base64': cfb = s2a(Base64.decode(cfb)); break;
@@ -842,30 +855,44 @@ if(cfb.FullPaths) {
 	prep_blob(cfb, 0);
 	WB = ({content: cfb}/*:any*/);
 }
-
-if(!WB) WB = CFB.find(cfb, '/Book');
-var CompObjP, SummaryP, WorkbookP/*:Workbook*/;
+var CompObjP, SummaryP, WorkbookP/*:: :Workbook = XLSX.utils.book_new(); */;
 
 var _data/*:?any*/;
 if(CompObj) CompObjP = parse_compobj(CompObj);
 if(options.bookProps && !options.bookSheets) WorkbookP = ({}/*:any*/);
-else {
+else/*:: if(cfb instanceof CFBContainer) */ {
+	var T = has_buf ? 'buffer' : 'array';
 	if(WB && WB.content) WorkbookP = parse_workbook(WB.content, options);
 	/* Quattro Pro 7-8 */
-	else if((_data=CFB.find(cfb, 'PerfectOffice_MAIN')) && _data.content) WorkbookP = WK_.to_workbook(_data.content, options);
+	else if((_data=CFB.find(cfb, 'PerfectOffice_MAIN')) && _data.content) WorkbookP = WK_.to_workbook(_data.content, (options.type = T, options));
 	/* Quattro Pro 9 */
-	else if((_data=CFB.find(cfb, 'NativeContent_MAIN')) && _data.content) WorkbookP = WK_.to_workbook(_data.content, options);
+	else if((_data=CFB.find(cfb, 'NativeContent_MAIN')) && _data.content) WorkbookP = WK_.to_workbook(_data.content, (options.type = T, options));
 	else throw new Error("Cannot find Workbook stream");
+	if(options.bookVBA && CFB.find(cfb, '/_VBA_PROJECT_CUR/VBA/dir')) WorkbookP.vbaraw = make_vba_xls(cfb);
 }
 
-if(cfb.FullPaths) parse_props(cfb);
-
 var props = {};
-for(var y in cfb.Summary) props[y] = cfb.Summary[y];
-for(y in cfb.DocSummary) props[y] = cfb.DocSummary[y];
+if(cfb.FullPaths) parse_props(/*::((*/cfb/*:: :any):CFBContainer)*/, props, options);
+
 WorkbookP.Props = WorkbookP.Custprops = props; /* TODO: split up properties */
 if(options.bookFiles) WorkbookP.cfb = cfb;
 /*WorkbookP.CompObjP = CompObjP; // TODO: storage? */
 return WorkbookP;
 }
 
+
+function write_xlscfb(wb/*:Workbook*/, opts/*:WriteOpts*/)/*:CFBContainer*/ {
+	var o = opts || {};
+	var cfb = CFB.utils.cfb_new({root:"R"});
+	var wbpath = "/Workbook";
+	switch(o.bookType || "xls") {
+		case "xls": o.bookType = "biff8";
+		/* falls through */
+		case "biff8": wbpath = "/Workbook"; o.biff = 8; break;
+		case "biff5": wbpath = "/Book"; o.biff = 5; break;
+		default: throw new Error("invalid type " + o.bookType + " for XLS CFB");
+	}
+	CFB.utils.cfb_add(cfb, wbpath, write_biff_buf(wb, o));
+	// TODO: SI, DSI, CO
+	return cfb;
+}

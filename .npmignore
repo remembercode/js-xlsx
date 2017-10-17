@@ -22,13 +22,17 @@ tmp
 *.[uU][oO][sS]
 *.[wW][kKqQbB][S1234567890]
 *.[qQ][pP][wW]
+*.[bB][iI][fF][fF][23458]
+*.[rR][tT][fF]
 *.123
 *.htm
 *.html
 *.sheetjs
 *.exe
+*.img
 .gitignore
 .fossaignore
+.spelling
 .eslintrc
 .jshintrc
 CONTRIBUTING.md

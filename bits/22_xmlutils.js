@@ -1,5 +1,7 @@
+var XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n';
 var attregexg=/([^"\s?>\/]+)=((?:")([^"]*)(?:")|(?:')([^']*)(?:')|([^'">\s]+))/g;
 var tagregex=/<[\/\?]?[a-zA-Z0-9:]+(?:\s+[^"\s?>\/]+=(?:"[^"]*"|'[^']*'|[^'">\s]+))*\s?[\/\?]?>/g;
+if(!(XML_HEADER.match(tagregex))) tagregex = /<[^>]*>/g;
 var nsregex=/<\w*:/, nsregex2 = /<(\/?)\w+:/;
 function parsexmltag(tag/*:string*/, skip_root/*:?boolean*/)/*:any*/ {
 	var z = ({}/*:any*/);
@@ -99,6 +101,31 @@ var utf8read/*:StringConv*/ = function utf8reada(orig) {
 	return out;
 };
 
+var utf8write/*:StringConv*/ = function(orig) {
+	var out/*:Array<string>*/ = [], i = 0, c = 0, d = 0;
+	while(i < orig.length) {
+		c = orig.charCodeAt(i++);
+		switch(true) {
+			case c < 128: out.push(String.fromCharCode(c)); break;
+			case c < 2048:
+				out.push(String.fromCharCode(192 + (c >> 6)));
+				out.push(String.fromCharCode(128 + (c & 63)));
+				break;
+			case c >= 55296 && c < 57344:
+				c -= 55296; d = orig.charCodeAt(i++) - 56320 + (c<<10);
+				out.push(String.fromCharCode(240 + ((d >>18) & 7)));
+				out.push(String.fromCharCode(144 + ((d >>12) & 63)));
+				out.push(String.fromCharCode(128 + ((d >> 6) & 63)));
+				out.push(String.fromCharCode(128 + (d & 63)));
+				break;
+			default:
+				out.push(String.fromCharCode(224 + (c >> 12)));
+				out.push(String.fromCharCode(128 + ((c >> 6) & 63)));
+				out.push(String.fromCharCode(128 + (c & 63)));
+		}
+	}
+	return out.join("");
+};
 
 if(has_buf) {
 	var utf8readb = function utf8readb(data) {
@@ -122,6 +149,8 @@ if(has_buf) {
 	// $FlowIgnore
 	var utf8readc = function utf8readc(data) { return Buffer(data, 'binary').toString('utf8'); };
 	if(utf8read(corpus) == utf8readc(corpus)) utf8read = utf8readc;
+
+	utf8write = function(data) { return new Buffer(data, 'utf8').toString("binary"); };
 }
 
 // matches <foo>...</foo> extracts content
@@ -133,6 +162,10 @@ var matchtag = (function() {
 		return (mtcache[t] = new RegExp('<(?:\\w+:)?'+f+'(?: xml:space="preserve")?(?:[^>]*)>([\\s\\S]*?)</(?:\\w+:)?'+f+'>',((g||"")/*:any*/)));
 	};
 })();
+
+function htmldecode(str/*:string*/)/*:string*/ {
+	return str.trim().replace(/\s+/g, " ").replace(/<\s*[bB][rR]\s*\/?/g,"\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g, " ");
+}
 
 var vtregex = (function(){ var vt_cache = {};
 	return function vt_regex(bt) {
@@ -164,7 +197,7 @@ function writextag(f,g,h) { return '<' + f + (isval(h) /*:: && h */? wxt_helper(
 
 function write_w3cdtf(d/*:Date*/, t/*:?boolean*/)/*:string*/ { try { return d.toISOString().replace(/\.\d*/,""); } catch(e) { if(t) throw e; } return ""; }
 
-function write_vt(s) {
+function write_vt(s)/*:string*/ {
 	switch(typeof s) {
 		case 'string': return writextag('vt:lpwstr', s);
 		case 'number': return writextag((s|0)==s?'vt:i4':'vt:r8', String(s));
@@ -174,7 +207,6 @@ function write_vt(s) {
 	throw new Error("Unable to serialize " + s);
 }
 
-var XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n';
 var XMLNS = ({
 	'dc': 'http://purl.org/dc/elements/1.1/',
 	'dcterms': 'http://purl.org/dc/terms/',

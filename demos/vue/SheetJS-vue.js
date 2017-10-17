@@ -1,3 +1,4 @@
+/* xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
 var SheetJSFT = [
 	"xlsx", "xlsb", "xlsm", "xls", "xml", "csv", "txt", "ods", "fods", "uos", "sylk", "dif", "dbf", "prn", "qpw", "123", "wb*", "wq*", "html", "htm"
 ].map(function(x) { return "." + x; }).join(",");
@@ -6,7 +7,7 @@ var SJSTemplate = [
 	'<div>',
 		'<input type="file" multiple="false" id="sheetjs-input" accept="' + SheetJSFT + '" @change="onchange" />',
 		'<br/>',
-		'<button type="button" id="expor-table" style="visibility:hidden" @click="onexport">Export to XLSX</button>',
+		'<button type="button" id="export-table" style="visibility:hidden" @click="onexport">Export to XLSX</button>',
 		'<br/>',
 		'<div id="out-table"></div>',
 	'</div>'
@@ -28,8 +29,6 @@ function s2ab(s) {
 Vue.component('html-preview', {
 	template: SJSTemplate,
 	methods: {
-		// as per: https://github.com/SheetJS/js-xlsx/wiki/Reading-XLSX-from-FileReader.readAsArrayBuffer()
-		// changing the readAsBinaryString (deprecated) to readAsArrayBuffer()
 		onchange: function(evt) {
 			var file;
 			var files = evt.target.files;
@@ -37,7 +36,7 @@ Vue.component('html-preview', {
 			if (!files || files.length == 0) return;
 
 			file = files[0];
-			
+
 			var reader = new FileReader();
 			reader.onload = function (e) {
 				// pre-process data
@@ -47,7 +46,7 @@ Vue.component('html-preview', {
 				for (var i = 0; i < length; i++) {
 					binary += String.fromCharCode(bytes[i]);
 				}
-				
+
 				/* read workbook */
 				var wb = XLSX.read(binary, {type: 'binary'});
 
@@ -56,12 +55,12 @@ Vue.component('html-preview', {
 				var ws = wb.Sheets[wsname];
 
 				/* generate HTML */
-				var HTML = XLSX.utils.sheet_to_html(ws); 
+				var HTML = XLSX.utils.sheet_to_html(ws);
 
 				/* update table */
 				document.getElementById('out-table').innerHTML = HTML;
 				/* show export button */
-				document.getElementById('expor-table').style.visibility = "visible";
+				document.getElementById('export-table').style.visibility = "visible";
 			};
 
 			reader.readAsArrayBuffer(file);

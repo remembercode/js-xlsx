@@ -129,8 +129,8 @@ function sheet_to_csv(sheet/*:Worksheet*/, opts/*:?Sheet2CSVOpts*/)/*:string*/ {
 function sheet_to_txt(sheet/*:Worksheet*/, opts/*:?Sheet2CSVOpts*/) {
 	if(!opts) opts = {}; opts.FS = "\t"; opts.RS = "\n";
 	var s = sheet_to_csv(sheet, opts);
-	if(typeof cptable == 'undefined') return s;
-	var o = cptable.utils.encode(1200, s);
+	if(typeof cptable == 'undefined' || opts.type == 'string') return s;
+	var o = cptable.utils.encode(1200, s, 'str');
 	return "\xff\xfe" + o;
 }
 
@@ -175,10 +175,10 @@ function json_to_sheet(js/*:Array<any>*/, opts)/*:Worksheet*/ {
 	var range/*:Range*/ = ({s: {c:0, r:0}, e: {c:0, r:js.length}}/*:any*/);
 	var hdr = o.header || [], C = 0;
 
-	for(var R = 0; R != js.length; ++R) {
-		Object.keys(js[R]).filter(function(x) { return js[R].hasOwnProperty(x); }).forEach(function(k) {
+	js.forEach(function (JS, R) {
+		keys(JS).filter(function(x) { return JS.hasOwnProperty(x); }).forEach(function(k) {
 			if((C=hdr.indexOf(k)) == -1) hdr[C=hdr.length] = k;
-			var v = js[R][k];
+			var v = JS[k];
 			var t = 'z';
 			var z = "";
 			if(typeof v == 'number') t = 'n';
@@ -192,7 +192,7 @@ function json_to_sheet(js/*:Array<any>*/, opts)/*:Worksheet*/ {
 			ws[encode_cell({c:C,r:R+1})] = cell = ({t:t, v:v}/*:any*/);
 			if(z) cell.z = z;
 		});
-	}
+	});
 	range.e.c = hdr.length - 1;
 	for(C = 0; C < hdr.length; ++C) ws[encode_col(C) + "1"] = {t:'s', v:hdr[C]};
 	ws['!ref'] = encode_range(range);

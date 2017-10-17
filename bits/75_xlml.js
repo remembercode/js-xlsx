@@ -174,7 +174,10 @@ function parse_xlml_xml(d, _opts)/*:Workbook*/ {
 	var opts = _opts || {};
 	make_ssf(SSF);
 	var str = debom(xlml_normalize(d));
-	if(opts && opts.type == 'binary' && typeof cptable !== 'undefined') str = cptable.utils.decode(65001, char_codes(str));
+	if(opts.type == 'binary' || opts.type == 'base64') {
+		if(typeof cptable !== 'undefined') str = cptable.utils.decode(65001, char_codes(str));
+		else str = utf8read(str);
+	}
 	var opening = str.slice(0, 1024).toLowerCase(), ishtml = false;
 	if(opening.indexOf("<?xml") == -1) ["html", "table", "head", "meta", "script", "style", "div"].forEach(function(tag) { if(opening.indexOf("<" + tag) >= 0) ishtml = true; });
 	if(ishtml) return HTML_.to_workbook(str, opts);
@@ -193,7 +196,7 @@ function parse_xlml_xml(d, _opts)/*:Workbook*/ {
 	var comments = [], comment = {};
 	var cstys = [], csty, seencol = false;
 	var arrayf = [];
-	var rowinfo = [], rowobj = {};
+	var rowinfo = [], rowobj = {}, cc = 0, rr = 0;
 	var Workbook/*:WBWBProps*/ = ({ Sheets:[], WBProps:{date1904:false} }/*:any*/), wsprops = {};
 	xlmlregex.lastIndex = 0;
 	str = str.replace(/<!--([\s\S]*?)-->/mg,"");
@@ -217,8 +220,8 @@ function parse_xlml_xml(d, _opts)/*:Workbook*/ {
 					delete cell.HRef; delete cell.HRefScreenTip;
 				}
 				if(cell.MergeAcross || cell.MergeDown) {
-					var cc = c + (parseInt(cell.MergeAcross,10)|0);
-					var rr = r + (parseInt(cell.MergeDown,10)|0);
+					cc = c + (parseInt(cell.MergeAcross,10)|0);
+					rr = r + (parseInt(cell.MergeDown,10)|0);
 					mergecells.push({s:{c:c,r:r},e:{c:cc,r:rr}});
 				}
 				if(!opts.sheetStubs) { if(cell.MergeAcross) c = cc + 1; else ++c; }
@@ -942,9 +945,9 @@ function write_ws_xlml_wsopts(ws/*:Worksheet*/, opts, idx/*:number*/, wb/*:Workb
 		if(ws['!protect'].selectLockedCells != null && !ws['!protect'].selectLockedCells) o.push(writetag("EnableSelection", "NoSelection"));
 		else if(ws['!protect'].selectUnlockedCells != null && !ws['!protect'].selectUnlockedCells) o.push(writetag("EnableSelection", "UnlockedCells"));
 	[
-		[ "formatColumns", "AllowFormatCells" ],
-		[ "formatRows", "AllowSizeCols" ],
-		[ "formatCells", "AllowSizeRows" ],
+		[ "formatCells", "AllowFormatCells" ],
+		[ "formatColumns", "AllowSizeCols" ],
+		[ "formatRows", "AllowSizeRows" ],
 		[ "insertColumns", "AllowInsertCols" ],
 		[ "insertRows", "AllowInsertRows" ],
 		[ "insertHyperlinks", "AllowInsertHyperlinks" ],
@@ -1001,12 +1004,6 @@ function write_ws_xlml_cell(cell, ref, ws, opts, idx, wb, addr)/*:string*/{
 		case 's': t = 'String'; p = escapexml(cell.v||""); break;
 	}
 	var _v = (cell.v != null ? p : "");
-	if(opts && opts.type == 'binary' && typeof cptable !== 'undefined' && cell.t == 's') {
-		_v = cptable.utils.encode(65001, _v);
-		var __v = "";
-		for(var __i = 0; __i < _v.length; ++__i) __v += String.fromCharCode(_v[__i]);
-		_v = __v;
-	}
 	var m = '<Data ss:Type="' + t + '">' + _v + '</Data>';
 
 	if((cell.c||[]).length > 0) m += write_ws_xlml_comment(cell.c);

@@ -5,8 +5,8 @@
 var data = [
 	[1, 2, 3],
 	[true, false, null, "sheetjs"],
-	["foo", "bar", new Date("2014-02-19T14:30Z"), "0.3"],
-	["baz", null, "qux", 3.14159],
+	["foo    bar", "baz", new Date("2014-02-19T14:30Z"), "0.3"],
+	["baz", null, "\u0BEE", 3.14159],
 	["hidden"],
 	["visible"]
 ];
@@ -14,10 +14,10 @@ var data = [
 var ws_name = "SheetJS";
 
 var wscols = [
-	{wch:6}, // "characters"
-	{wpx:50}, // "pixels"
+	{wch: 6}, // "characters"
+	{wpx: 50}, // "pixels"
 	,
-	{hidden:true} // hide column
+	{hidden: true} // hide column
 ];
 
 /* At 96 PPI, 1 pt = 1 px */
@@ -162,7 +162,9 @@ var filenames = [
 	['sheetjs.xlsx', {bookSST:true}],
 	['sheetjs.xlsm'],
 	['sheetjs.xlsb'],
-	['sheetjs.xls', {bookType:'biff2'}],
+	['sheetjs.biff8.xls', {bookType:'xls'}],
+	['sheetjs.biff5.xls', {bookType:'biff5'}],
+	['sheetjs.biff2.xls', {bookType:'biff2'}],
 	['sheetjs.xml.xls', {bookType:'xlml'}],
 	['sheetjs.ods'],
 	['sheetjs.fods'],
@@ -171,6 +173,7 @@ var filenames = [
 	['sheetjs.slk'],
 	['sheetjs.htm'],
 	['sheetjs.dif'],
+	['sheetjs.rtf'],
 	['sheetjs.prn']
 ];
 
