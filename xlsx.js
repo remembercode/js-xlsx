@@ -27,7 +27,15 @@ function utf16beread(data) {
 	for(var i = 0; i < (data.length>>1); ++i) o[i] = String.fromCharCode(data.charCodeAt(2*i+1) + (data.charCodeAt(2*i)<<8));
 	return o.join("");
 }
-
+function contains(arr, obj) {
+	var i = arr.length;
+	while (i--) {
+		if (arr[i] === obj) {
+			return i;
+		}
+	}
+	return -1;
+}
 var debom = function(data) {
 	var c1 = data.charCodeAt(0), c2 = data.charCodeAt(1);
 	if(c1 == 0xFF && c2 == 0xFE) return utf16leread(data.substr(2));
@@ -17831,6 +17839,10 @@ function sheet_to_json(sheet, opts) {
 	var o = opts || {};
 	var raw = o.raw;
 	var defval = o.defval;
+	var duplicate = o.duplicate || {};
+	// for(let c = 0 ; c < duplicate.length ; c++){
+     //    duplicate[c]++;
+	// }
 	var range = o.range != null ? o.range : sheet["!ref"];
 	if(o.header === 1) header = 1;
 	else if(o.header === "A") header = 2;
@@ -17861,6 +17873,12 @@ function sheet_to_json(sheet, opts) {
 				counter = 0;
 				for(CC = 0; CC < hdr.length; ++CC) if(hdr[CC] == vv) vv = v + "_" + (++counter);
 				hdr[C] = vv;
+				if(duplicate.length > 0){
+					let dindex = contains(duplicate,C);
+					if(dindex >= 0){
+                        duplicate[dindex] = hdr[C];
+					}
+				}
 		}
 	}
 	var row = (header === 1) ? [] : {};
@@ -17877,7 +17895,24 @@ function sheet_to_json(sheet, opts) {
 			val = dense ? sheet[R][C] : sheet[cols[C] + rr];
 			if(val === undefined || val.t === undefined) {
 				if(defval === undefined) continue;
-				if(hdr[C] != null) { row[hdr[C]] = defval; isempty = false; }
+				if(hdr[C] != null) {
+                    row[hdr[C]] = defval;
+                    let cindex = contains(duplicate, hdr[C]);
+                    let ok_dup = duplicate.length > 0;
+                    let ok_col = cindex >= 0;
+                    let ok_outi = outi > 0;
+                    let out_outi_pre = out[outi - 1];
+                    let prop_name = hdr[C];
+					let out_outi_hdr_C;
+					if(out_outi_pre){
+                        out_outi_hdr_C = out[outi - 1][hdr[C]];
+					}
+                    let pre_out_outi = out_outi_hdr_C;
+					if(ok_dup > 0 && ok_col && ok_outi && pre_out_outi){
+                        row[hdr[C]] = pre_out_outi;
+                    }
+                    isempty = false;
+				}
 				continue;
 			}
 			v = val.v;
